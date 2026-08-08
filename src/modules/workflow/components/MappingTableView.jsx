@@ -513,9 +513,45 @@ function MappingDialog({
 
 // ─── MAIN VIEW (default export) ────────────────────────────
 
-export default function MappingTableView({ items, config }) {
+export default function MappingTableView({ items, config, embedded = false, showHeader = true }) {
   const h = useMappingTable({ items, config });
   const { title, subtitle, addLabel } = config || {};
+
+  const content = (
+    <>
+      {showHeader ? (
+        <MappingHeader
+          title={title} subtitle={subtitle}
+          hasPendingChanges={h.hasPendingChanges} pendingSummary={h.pendingSummary}
+          isSavingBatch={h.isSavingBatch} isMutatingAction={h.isMutatingAction}
+          handleSaveBatch={h.handleSaveBatch} handleCancelBatch={h.handleCancelBatch}
+          openAddDialog={h.openAddDialog} addLabel={addLabel}
+        />
+      ) : null}
+
+      <MappingTable
+        decoratedRows={h.decoratedRows}
+        isMutatingAction={h.isMutatingAction} isSavingBatch={h.isSavingBatch}
+        pendingDeactivatedIds={h.pendingDeactivatedIds}
+        openEditDialog={h.openEditDialog} openToggleDialog={h.openToggleDialog}
+        openDeactivateDialog={h.openDeactivateDialog}
+        stageHardDelete={h.stageHardDelete} onUndoBatchAction={h.unstageHardDelete}
+        onInlineEdit={h.handleInlineEdit}
+        config={config}
+      />
+
+      <MappingDialog
+        dialog={h.dialog} draft={h.draft}
+        isMutatingAction={h.isMutatingAction} isSavingBatch={h.isSavingBatch}
+        setDraft={h.setDraft} closeDialog={h.closeDialog}
+        submitAdd={h.submitAdd} submitEdit={h.submitEdit}
+        submitToggle={h.submitToggle} submitDeactivate={h.submitDeactivate}
+        config={config}
+      />
+    </>
+  );
+
+  if (embedded) return content;
 
   return (
     <main className="container-fluid py-4">
@@ -530,33 +566,7 @@ export default function MappingTableView({ items, config }) {
         <WorkflowSideNav />
 
         <div className="setup-content-pane">
-          <MappingHeader
-            title={title} subtitle={subtitle}
-            hasPendingChanges={h.hasPendingChanges} pendingSummary={h.pendingSummary}
-            isSavingBatch={h.isSavingBatch} isMutatingAction={h.isMutatingAction}
-            handleSaveBatch={h.handleSaveBatch} handleCancelBatch={h.handleCancelBatch}
-            openAddDialog={h.openAddDialog} addLabel={addLabel}
-          />
-
-          <MappingTable
-            decoratedRows={h.decoratedRows}
-            isMutatingAction={h.isMutatingAction} isSavingBatch={h.isSavingBatch}
-            pendingDeactivatedIds={h.pendingDeactivatedIds}
-            openEditDialog={h.openEditDialog} openToggleDialog={h.openToggleDialog}
-            openDeactivateDialog={h.openDeactivateDialog}
-            stageHardDelete={h.stageHardDelete} onUndoBatchAction={h.unstageHardDelete}
-            onInlineEdit={h.handleInlineEdit}
-            config={config}
-          />
-
-          <MappingDialog
-            dialog={h.dialog} draft={h.draft}
-            isMutatingAction={h.isMutatingAction} isSavingBatch={h.isSavingBatch}
-            setDraft={h.setDraft} closeDialog={h.closeDialog}
-            submitAdd={h.submitAdd} submitEdit={h.submitEdit}
-            submitToggle={h.submitToggle} submitDeactivate={h.submitDeactivate}
-            config={config}
-          />
+          {content}
         </div>
       </div>
     </main>

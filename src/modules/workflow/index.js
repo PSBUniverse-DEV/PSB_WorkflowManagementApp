@@ -6,6 +6,8 @@
  * The route generator reads this to auto-create page files
  * under src/app/ when you run `npm run dev` or `npm run build`.
  *
+ * All workflow configuration tables are consolidated into a single
+ * /workflow page with tabbed sections (see WorkflowView).
  * ═══════════════════════════════════════════════════════════
  */
 const workflowModule = {
@@ -19,12 +21,6 @@ const workflowModule = {
   order: 200,
   routes: [
     { path: "/workflow", page: "WorkflowPage" },
-    { path: "/workflow/workflows", page: "WorkflowSetupPage" },
-    { path: "/workflow/stage-types", page: "StageTypePage" },
-    { path: "/workflow/approval-types", page: "ApprovalTypePage" },
-    { path: "/workflow/org-roles", page: "OrgRolePage" },
-    { path: "/workflow/stage-participants", page: "StageParticipantPage" },
-    { path: "/workflow/user-org-roles", page: "UserOrgRolePage" },
   ],
 };
 

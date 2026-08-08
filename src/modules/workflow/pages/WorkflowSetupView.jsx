@@ -498,13 +498,20 @@ function useWorkflowSetup({ workflows = [], stages = [], stageTypes = [], orgRol
 
 // ── Header ──
 
-function WorkflowHeader({ hasPendingChanges, pendingSummary, isSavingOrder, isMutatingAction, handleSaveOrderChanges, handleCancelOrderChanges, openAddWorkflowDialog }) {
+function WorkflowHeader({ hasPendingChanges, pendingSummary, isSavingOrder, isMutatingAction, handleSaveOrderChanges, handleCancelOrderChanges, openAddWorkflowDialog, embedded = false }) {
   return (
     <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-      <div>
-        <h1 className="h3 mb-1">Workflow Configuration</h1>
-        <p className="text-muted mb-0">Manage workflows, stages, and workflow configuration tables.</p>
-      </div>
+      {!embedded ? (
+        <div>
+          <h1 className="h3 mb-1">Workflow Configuration</h1>
+          <p className="text-muted mb-0">Manage workflows, stages, and workflow configuration tables.</p>
+        </div>
+      ) : (
+        <div>
+          <h4 className="mb-0">Workflows</h4>
+          <p className="text-muted small mb-0">Manage workflows and their stages.</p>
+        </div>
+      )}
       <div className="d-flex flex-wrap align-items-center justify-content-end gap-2">
         <span className={`small ${hasPendingChanges ? "text-warning-emphasis fw-semibold" : "text-muted"}`}>
           {isMutatingAction || isSavingOrder ? "Saving batch..." : hasPendingChanges ? `${pendingSummary.total} staged change(s)` : "No changes"}
@@ -707,8 +714,53 @@ function WorkflowDialog({
 
 // ─── MAIN VIEW (default export) ────────────────────────────
 
-export default function WorkflowSetupView({ workflows, stages, stageTypes, orgRoles, initialSelectedWfId }) {
+export default function WorkflowSetupView({ workflows, stages, stageTypes, orgRoles, initialSelectedWfId, embedded = false }) {
   const h = useWorkflowSetup({ workflows, stages, stageTypes, orgRoles, initialSelectedWfId });
+
+  if (embedded) {
+    return (
+      <>
+        <WorkflowHeader
+          hasPendingChanges={h.hasPendingChanges} pendingSummary={h.pendingSummary}
+          isSavingOrder={h.isSavingOrder} isMutatingAction={h.isMutatingAction}
+          handleSaveOrderChanges={h.handleSaveOrderChanges} handleCancelOrderChanges={h.handleCancelOrderChanges}
+          openAddWorkflowDialog={h.openAddWorkflowDialog} embedded
+        />
+
+        <WorkflowTable
+          decoratedWorkflows={h.decoratedWorkflows} decoratedSelectedWfStages={h.decoratedSelectedWfStages}
+          selectedWf={h.selectedWf} expandedWfId={h.expandedWfId}
+          isSavingOrder={h.isSavingOrder} isMutatingAction={h.isMutatingAction}
+          pendingDeactivatedWfIds={h.pendingDeactivatedWfIds} pendingDeactivatedStageIds={h.pendingDeactivatedStageIds}
+          handleWorkflowRowClick={h.handleWorkflowRowClick} handleWorkflowReorder={h.handleWorkflowReorder}
+          editingWfId={h.editingWfId} onStartEditingWf={h.startEditingWf} onStopEditingWf={h.stopEditingWf}
+          onInlineEditWf={h.handleInlineEditWorkflow}
+          openToggleWorkflowDialog={h.openToggleWorkflowDialog} openDeactivateWorkflowDialog={h.openDeactivateWorkflowDialog}
+          stageHardDeleteWorkflow={h.stageHardDeleteWorkflow} onUndoBatchActionWf={h.unstageHardDeleteWorkflow}
+          openAddStageDialog={h.openAddStageDialog}
+          editingStageId={h.editingStageId} onStartEditingStage={h.startEditingStage} onStopEditingStage={h.stopEditingStage}
+          onInlineEditStage={h.handleInlineEditStage}
+          openEditStageDialog={h.openEditStageDialog} openToggleStageDialog={h.openToggleStageDialog}
+          openDeactivateStageDialog={h.openDeactivateStageDialog}
+          stageHardDeleteStage={h.stageHardDeleteStage} onUndoBatchActionStage={h.unstageHardDeleteStage}
+          stageTypeOptions={h.stageTypeOptions} orgRoleOptions={h.orgRoleOptions}
+        />
+
+        <WorkflowDialog
+          dialog={h.dialog} workflowDraft={h.workflowDraft} stageDraft={h.stageDraft}
+          isMutatingAction={h.isMutatingAction}
+          setWorkflowDraft={h.setWorkflowDraft} setStageDraft={h.setStageDraft}
+          closeDialog={h.closeDialog}
+          submitAddWorkflow={h.submitAddWorkflow} submitEditWorkflow={h.submitEditWorkflow}
+          submitToggleWorkflow={h.submitToggleWorkflow} submitDeactivateWorkflow={h.submitDeactivateWorkflow}
+          submitEditStage={h.submitEditStage} submitToggleStage={h.submitToggleStage}
+          submitDeactivateStage={h.submitDeactivateStage} submitAddStage={h.submitAddStage}
+          stageTypeOptions={h.stageTypeOptions} orgRoleOptions={h.orgRoleOptions}
+          selectedWf={h.selectedWf}
+        />
+      </>
+    );
+  }
 
   return (
     <main className="container-fluid py-4">

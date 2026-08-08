@@ -55,7 +55,6 @@ async function requireWorkflowAccess() {
 // ─── DATA LOADING ──────────────────────────────────────────
 
 export async function loadWorkflowSetupData() {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
 
   const [wfResult, stagesResult, stageTypesResult, orgRolesResult] = await Promise.all([
@@ -88,7 +87,6 @@ function compareText(left, right) {
 }
 
 export async function loadStageTypesData() {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("wfk_s_stagetype").select("*").order("stagetype_name", { ascending: true });
   if (error) throw new Error(error.message || "Failed to fetch stage types");
@@ -96,7 +94,6 @@ export async function loadStageTypesData() {
 }
 
 export async function loadApprovalTypesData() {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("wfk_s_approvaltype").select("*").order("approvaltype_name", { ascending: true });
   if (error) throw new Error(error.message || "Failed to fetch approval types");
@@ -104,7 +101,6 @@ export async function loadApprovalTypesData() {
 }
 
 export async function loadOrgRolesData() {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("wfk_s_orgrole").select("*").order("name", { ascending: true });
   if (error) throw new Error(error.message || "Failed to fetch org roles");
@@ -112,7 +108,6 @@ export async function loadOrgRolesData() {
 }
 
 export async function loadStageParticipantsData() {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const [participantsResult, stagesResult, orgRolesResult, approvalTypesResult] = await Promise.all([
     supabase.from("wfk_m_stageparticipant").select("*").order("stageparticipant_id", { ascending: true }),
@@ -130,7 +125,6 @@ export async function loadStageParticipantsData() {
 }
 
 export async function loadUserOrgRolesData() {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const [mappingsResult, orgRolesResult, usersResult] = await Promise.all([
     supabase.from("wfk_m_userorgrole").select("*").order("user_orgrole_id", { ascending: true }),
@@ -142,6 +136,49 @@ export async function loadUserOrgRolesData() {
     items: mappingsResult.data ?? [],
     orgRoles: orgRolesResult.data ?? [],
     users: usersResult.data ?? [],
+  };
+}
+
+// ─── CONSOLIDATED OVERVIEW LOADER ──────────────────────────
+
+export async function loadWorkflowOverviewData() {
+  const supabase = getSupabaseAdmin();
+
+  const [
+    wfResult, stagesResult, stageTypesResult, approvalTypesResult, orgRolesResult,
+    participantsResult, usersResult, userOrgRolesResult,
+  ] = await Promise.all([
+    supabase.from("wfk_s_workflow").select("*"),
+    supabase.from("wfk_s_workflowstages").select("*"),
+    supabase.from("wfk_s_stagetype").select("*"),
+    supabase.from("wfk_s_approvaltype").select("*"),
+    supabase.from("wfk_s_orgrole").select("*"),
+    supabase.from("wfk_m_stageparticipant").select("*"),
+    supabase.from("psb_s_user").select("user_id, username, first_name, last_name"),
+    supabase.from("wfk_m_userorgrole").select("*"),
+  ]);
+
+  if (wfResult.error) throw new Error(wfResult.error.message || "Failed to fetch workflows");
+  if (stagesResult.error) throw new Error(stagesResult.error.message || "Failed to fetch workflow stages");
+  if (participantsResult.error) throw new Error(participantsResult.error.message || "Failed to fetch stage participants");
+  if (userOrgRolesResult.error) throw new Error(userOrgRolesResult.error.message || "Failed to fetch user org roles");
+
+  const workflows = (Array.isArray(wfResult.data) ? wfResult.data : [])
+    .sort((a, b) => {
+      const d = getWorkflowDisplayOrder(a, Number.MAX_SAFE_INTEGER) - getWorkflowDisplayOrder(b, Number.MAX_SAFE_INTEGER);
+      if (d !== 0) return d;
+      return compareText(a.wf_name, b.wf_name);
+    });
+
+  return {
+    workflows,
+    stages: Array.isArray(stagesResult.data) ? stagesResult.data : [],
+    stageTypes: Array.isArray(stageTypesResult.data) ? stageTypesResult.data : [],
+    approvalTypes: Array.isArray(approvalTypesResult.data) ? approvalTypesResult.data : [],
+    orgRoles: Array.isArray(orgRolesResult.data) ? orgRolesResult.data : [],
+    stageParticipants: Array.isArray(participantsResult.data) ? participantsResult.data : [],
+    users: Array.isArray(usersResult.data) ? usersResult.data : [],
+    userOrgRoles: Array.isArray(userOrgRolesResult.data) ? userOrgRolesResult.data : [],
   };
 }
 

@@ -453,9 +453,45 @@ function ReferenceDialog({ dialog, draft, isMutatingAction, isSavingBatch, setDr
 
 // ─── MAIN VIEW (default export) ────────────────────────────
 
-export default function ReferenceTableView({ items, config }) {
+export default function ReferenceTableView({ items, config, embedded = false, showHeader = true }) {
   const h = useReferenceTable({ items, config });
   const { title, subtitle, addLabel, nameLabel, descLabel, extraColumns = [] } = config || {};
+
+  const content = (
+    <>
+      {showHeader ? (
+        <ReferenceHeader
+          title={title} subtitle={subtitle}
+          hasPendingChanges={h.hasPendingChanges} pendingSummary={h.pendingSummary}
+          isSavingBatch={h.isSavingBatch} isMutatingAction={h.isMutatingAction}
+          handleSaveBatch={h.handleSaveBatch} handleCancelBatch={h.handleCancelBatch}
+          openAddDialog={h.openAddDialog} addLabel={addLabel}
+        />
+      ) : null}
+
+      <ReferenceTable
+        decoratedRows={h.decoratedRows}
+        isMutatingAction={h.isMutatingAction} isSavingBatch={h.isSavingBatch}
+        pendingDeactivatedIds={h.pendingDeactivatedIds}
+        editingId={h.editingId} onStartEditing={h.startEditing} onStopEditing={h.stopEditing}
+        onInlineEdit={h.handleInlineEdit}
+        openToggleDialog={h.openToggleDialog} openDeactivateDialog={h.openDeactivateDialog}
+        stageHardDelete={h.stageHardDelete} onUndoBatchAction={h.unstageHardDelete}
+        nameLabel={nameLabel} descLabel={descLabel} extraColumns={extraColumns}
+      />
+
+      <ReferenceDialog
+        dialog={h.dialog} draft={h.draft}
+        isMutatingAction={h.isMutatingAction} isSavingBatch={h.isSavingBatch}
+        setDraft={h.setDraft} closeDialog={h.closeDialog}
+        submitAdd={h.submitAdd} submitEdit={h.submitEdit}
+        submitToggle={h.submitToggle} submitDeactivate={h.submitDeactivate}
+        nameLabel={nameLabel} descLabel={descLabel} addLabel={addLabel}
+      />
+    </>
+  );
+
+  if (embedded) return content;
 
   return (
     <main className="container-fluid py-4">
@@ -470,33 +506,7 @@ export default function ReferenceTableView({ items, config }) {
         <WorkflowSideNav />
 
         <div className="setup-content-pane">
-          <ReferenceHeader
-            title={title} subtitle={subtitle}
-            hasPendingChanges={h.hasPendingChanges} pendingSummary={h.pendingSummary}
-            isSavingBatch={h.isSavingBatch} isMutatingAction={h.isMutatingAction}
-            handleSaveBatch={h.handleSaveBatch} handleCancelBatch={h.handleCancelBatch}
-            openAddDialog={h.openAddDialog} addLabel={addLabel}
-          />
-
-          <ReferenceTable
-            decoratedRows={h.decoratedRows}
-            isMutatingAction={h.isMutatingAction} isSavingBatch={h.isSavingBatch}
-            pendingDeactivatedIds={h.pendingDeactivatedIds}
-            editingId={h.editingId} onStartEditing={h.startEditing} onStopEditing={h.stopEditing}
-            onInlineEdit={h.handleInlineEdit}
-            openToggleDialog={h.openToggleDialog} openDeactivateDialog={h.openDeactivateDialog}
-            stageHardDelete={h.stageHardDelete} onUndoBatchAction={h.unstageHardDelete}
-            nameLabel={nameLabel} descLabel={descLabel} extraColumns={extraColumns}
-          />
-
-          <ReferenceDialog
-            dialog={h.dialog} draft={h.draft}
-            isMutatingAction={h.isMutatingAction} isSavingBatch={h.isSavingBatch}
-            setDraft={h.setDraft} closeDialog={h.closeDialog}
-            submitAdd={h.submitAdd} submitEdit={h.submitEdit}
-            submitToggle={h.submitToggle} submitDeactivate={h.submitDeactivate}
-            nameLabel={nameLabel} descLabel={descLabel} addLabel={addLabel}
-          />
+          {content}
         </div>
       </div>
     </main>
