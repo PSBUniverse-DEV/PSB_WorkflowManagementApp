@@ -640,10 +640,10 @@ function WorkflowTable({
       const stageType = stageTypeOptions.find((st) => isSameId(st?.stagetype_id, row?.stagetype_id));
       return <span className="small">{stageType?.stagetype_name || row?.stagetype_id || "--"}</span>;
     }},
-    { key: "orgrole_id", label: "Org Role", width: "16%", sortable: true, render: (row) => {
-      const orgRole = orgRoleOptions.find((or) => isSameId(or?.orgrole_id, row?.orgrole_id));
-      return <span className="small">{orgRole?.name || row?.orgrole_id || "--"}</span>;
-    }},
+    // { key: "orgrole_id", label: "Org Role", width: "16%", sortable: true, render: (row) => {
+    //   const orgRole = orgRoleOptions.find((or) => isSameId(or?.orgrole_id, row?.orgrole_id));
+    //   return <span className="small">{orgRole?.name || row?.orgrole_id || "--"}</span>;
+    // }},
     { key: "stage_order", label: "Order", width: "8%", sortable: true, align: "center", render: (row) => <span className="text-muted small">{row?.stage_order ?? "--"}</span> },
     { key: "is_active_bool", label: "Active", width: "10%", sortable: true, align: "center", render: (row) => <StatusBadge status={row?.is_active_bool ? "active" : "inactive"} /> },
   ], [editingStageId, isMutatingAction, isSavingOrder, onInlineEditStage, onStopEditingStage, stageTypeOptions, orgRoleOptions]);
@@ -676,7 +676,7 @@ function WorkflowTable({
   };
 
   const participantDetailColumns = useMemo(() => [
-    { key: "user_orgrole_id", label: "User Org Role ID", width: "16%", sortable: false, render: (row) => <span className="text-muted small">{row?.user_orgrole_id ?? "--"}</span> },
+    { key: "user_orgrole_id", label: "User Org Role ID", width: "16%", sortable: false,defaultVisible: false,  render: (row) => <span className="text-muted small">{row?.user_orgrole_id ?? "--"}</span> },
     { key: "user_id", label: "User", width: "44%", sortable: false, render: (row) => { const user = users.find((u) => isSameId(u?.user_id, row?.user_id)); return <span className="small">{user ? getUserLabel(user) : (row?.user_id || "--")}</span>; } },
     { key: "is_primary", label: "Primary", width: "12%", sortable: false, align: "center", render: (row) => (row?.is_primary ? <span className="psb-batch-chip psb-batch-chip-added">Primary</span> : <span className="text-muted small">--</span>) },
     { key: "is_active_bool", label: "Active", width: "12%", sortable: false, align: "center", render: (row) => <StatusBadge status={row?.is_active_bool ? "active" : "inactive"} /> },
@@ -860,7 +860,7 @@ function WorkflowDialog({
           <div><label className="form-label mb-1">Stage Name</label><Input value={stageDraft.name} onChange={(e) => setStageDraft((p) => ({ ...p, name: e.target.value }))} placeholder="Enter stage name" autoFocus /></div>
           <div><label className="form-label mb-1">Description</label><Input as="textarea" rows={2} value={stageDraft.desc} onChange={(e) => setStageDraft((p) => ({ ...p, desc: e.target.value }))} placeholder="Enter stage description" /></div>
           <div className="row g-2">
-            <div className="col-6">
+            <div>
               <label className="form-label mb-1">Stage Type</label>
               <select className="form-select form-select-sm" value={stageDraft.stagetypeId} onChange={(e) => setStageDraft((p) => ({ ...p, stagetypeId: e.target.value }))}>
                 <option value="">-- None --</option>
@@ -869,7 +869,7 @@ function WorkflowDialog({
                 ))}
               </select>
             </div>
-            <div className="col-6">
+            {/* <div className="col-6">
               <label className="form-label mb-1">Org Role</label>
               <select className="form-select form-select-sm" value={stageDraft.orgroleId} onChange={(e) => setStageDraft((p) => ({ ...p, orgroleId: e.target.value }))}>
                 <option value="">-- None --</option>
@@ -877,7 +877,7 @@ function WorkflowDialog({
                   <option key={or.orgrole_id} value={or.orgrole_id}>{or.name}</option>
                 ))}
               </select>
-            </div>
+            </div> */}
           </div>
         </div>
       ) : null}
