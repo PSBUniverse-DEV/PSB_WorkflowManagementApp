@@ -14,6 +14,7 @@ import WorkflowSideNav, { WORKFLOW_TABS } from "../components/WorkflowSideNav";
 import WorkflowSetupView from "./WorkflowSetupView";
 import ReferenceTableView from "../components/ReferenceTableView";
 import MappingTableView from "../components/MappingTableView";
+import OrgRoleSetupView from "../components/OrgRoleSetupView";
 import { REF_ACTIONS } from "../data/reference.data";
 
 const WORKFLOW_TAB_KEY = "workflows";
@@ -27,6 +28,9 @@ export default function WorkflowView({
   stageParticipants = [],
   users = [],
   userOrgRoles = [],
+  companies = [],
+  departments = [],
+  apps =[],
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -103,17 +107,6 @@ export default function WorkflowView({
       addLabel: "+ Add Approval Type",
       actions: REF_ACTIONS.approvaltype,
     },
-    "org-roles": {
-      idField: "orgrole_id",
-      nameField: "name",
-      descField: "description",
-      nameLabel: "Org Role Name",
-      descLabel: "Description",
-      title: "Org Roles",
-      subtitle: "Manage organizational role reference records.",
-      addLabel: "+ Add Org Role",
-      actions: REF_ACTIONS.orgrole,
-    },
   };
 
   let content = null;
@@ -125,6 +118,13 @@ export default function WorkflowView({
         stages={stages}
         stageTypes={stageTypes}
         orgRoles={orgRoles}
+        companies={companies}
+        departments={departments}
+       apps={apps}
+        approvalTypes={approvalTypes}
+        stageParticipants={stageParticipants}
+        userOrgRoles={userOrgRoles}
+        users={users}
         embedded
       />
     );
@@ -144,12 +144,20 @@ export default function WorkflowView({
         embedded
       />
     );
+  } else if (activeTab === "org-roles") {
+    content = (
+      <OrgRoleSetupView
+        orgRoles={orgRoles}
+        userOrgRoles={userOrgRoles}
+        users={users}
+        embedded
+      />
+    );
   } else {
     const config = refConfig[activeTab];
     const itemsMap = {
       "stage-types": stageTypes,
       "approval-types": approvalTypes,
-      "org-roles": orgRoles,
     };
     content = (
       <ReferenceTableView

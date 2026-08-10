@@ -1,7 +1,6 @@
 "use server";
 
 import { getSupabaseAdmin } from "@/core/supabase/admin";
-import { getCurrentSession } from "@/core/auth/session.service";
 
 // ─── Private helpers ───────────────────────────────────────
 
@@ -44,24 +43,19 @@ function getStageDisplayOrder(stage, fallback = 0) {
   return fallback;
 }
 
-async function requireWorkflowAccess() {
-  const session = await getCurrentSession();
-  if (!session) throw new Error("Unauthorized");
-  // Uncomment when WORKFLOW module is registered in session:
-  // if (!session.modules?.includes("WORKFLOW")) throw new Error("Forbidden");
-  return session;
-}
-
 // ─── DATA LOADING ──────────────────────────────────────────
 
 export async function loadWorkflowSetupData() {
   const supabase = getSupabaseAdmin();
 
-  const [wfResult, stagesResult, stageTypesResult, orgRolesResult] = await Promise.all([
+  const [wfResult, stagesResult, stageTypesResult, orgRolesResult, companiesResult, departmentsResult, appsResult] = await Promise.all([
     supabase.from("wfk_s_workflow").select("*").order("wf_id", { ascending: true }),
     supabase.from("wfk_s_workflowstages").select("*").order("stage_order", { ascending: true }),
     supabase.from("wfk_s_stagetype").select("*").order("stagetype_name", { ascending: true }),
     supabase.from("wfk_s_orgrole").select("*").order("name", { ascending: true }),
+    supabase.from("psb_s_company").select("comp_id, comp_name").order("comp_name", { ascending: true }),
+    supabase.from("psb_s_department").select("dept_id, dept_name, comp_id").order("dept_name", { ascending: true }),
+    supabase.from("psb_s_application").select("app_id, app_name").order("app_name", { ascending: true }),
   ]);
 
   if (wfResult.error) throw new Error(wfResult.error.message || "Failed to fetch workflows");
@@ -79,6 +73,9 @@ export async function loadWorkflowSetupData() {
     stages: Array.isArray(stagesResult.data) ? stagesResult.data : [],
     stageTypes: Array.isArray(stageTypesResult.data) ? stageTypesResult.data : [],
     orgRoles: Array.isArray(orgRolesResult.data) ? orgRolesResult.data : [],
+    companies: Array.isArray(companiesResult.data) ? companiesResult.data : [],
+    departments: Array.isArray(departmentsResult.data) ? departmentsResult.data : [],
+    apps: Array.isArray(appsResult.data) ? appsResult.data : [],
   };
 }
 
@@ -146,7 +143,7 @@ export async function loadWorkflowOverviewData() {
 
   const [
     wfResult, stagesResult, stageTypesResult, approvalTypesResult, orgRolesResult,
-    participantsResult, usersResult, userOrgRolesResult,
+    participantsResult, usersResult, userOrgRolesResult, companiesResult, departmentsResult, appsResult,
   ] = await Promise.all([
     supabase.from("wfk_s_workflow").select("*"),
     supabase.from("wfk_s_workflowstages").select("*"),
@@ -156,6 +153,9 @@ export async function loadWorkflowOverviewData() {
     supabase.from("wfk_m_stageparticipant").select("*"),
     supabase.from("psb_s_user").select("user_id, username, first_name, last_name"),
     supabase.from("wfk_m_userorgrole").select("*"),
+    supabase.from("psb_s_company").select("comp_id, comp_name"),
+    supabase.from("psb_s_department").select("dept_id, dept_name, comp_id"),
+    supabase.from("psb_s_application").select("app_id, app_name"),
   ]);
 
   if (wfResult.error) throw new Error(wfResult.error.message || "Failed to fetch workflows");
@@ -179,17 +179,22 @@ export async function loadWorkflowOverviewData() {
     stageParticipants: Array.isArray(participantsResult.data) ? participantsResult.data : [],
     users: Array.isArray(usersResult.data) ? usersResult.data : [],
     userOrgRoles: Array.isArray(userOrgRolesResult.data) ? userOrgRolesResult.data : [],
+    companies: Array.isArray(companiesResult.data) ? companiesResult.data : [],
+    departments: Array.isArray(departmentsResult.data) ? departmentsResult.data : [],
+    apps: Array.isArray(appsResult.data) ? appsResult.data : [],
   };
 }
 
 // ─── WORKFLOW ACTIONS ──────────────────────────────────────
 
 export async function createWorkflowAction(payload) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const wfName = normalizeText(payload?.wf_name);
   const wfDesc = sanitizeOptionalText(payload?.wf_description);
   const isActive = hasOwn(payload || {}, "is_active") ? normalizeBoolean(payload?.is_active) : true;
+  const compId = payload?.comp_id ?? null;
+  const deptId = payload?.dept_id ?? null;
+  const appId = payload?.app_id ?? null;
 
   if (!wfName) throw new Error("Workflow name is required.");
 
@@ -202,14 +207,13 @@ export async function createWorkflowAction(payload) {
   ) + 1;
 
   const { data, error } = await supabase.from("wfk_s_workflow")
-    .insert({ wf_name: wfName, wf_description: wfDesc, is_active: isActive, display_order: nextOrder })
+    .insert({ wf_name: wfName, wf_description: wfDesc, is_active: isActive, display_order: nextOrder, comp_id: compId, dept_id: deptId, app_id: appId })
     .select("*").single();
   if (error) throw new Error(error.message || "Failed to create workflow");
   return data;
 }
 
 export async function updateWorkflowAction(wfId, updates) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const payload = {};
   if (hasOwn(updates, "wf_name")) {
@@ -219,6 +223,9 @@ export async function updateWorkflowAction(wfId, updates) {
   }
   if (hasOwn(updates, "wf_description")) payload.wf_description = sanitizeOptionalText(updates.wf_description);
   if (hasOwn(updates, "is_active")) payload.is_active = normalizeBoolean(updates.is_active);
+  if (hasOwn(updates, "comp_id")) payload.comp_id = updates.comp_id ?? null;
+  if (hasOwn(updates, "dept_id")) payload.dept_id = updates.dept_id ?? null;
+  if (hasOwn(updates, "app_id")) payload.app_id = updates.app_id ?? null;
   if (Object.keys(payload).length === 0) throw new Error("No valid workflow updates supplied.");
 
   const { data, error } = await supabase.from("wfk_s_workflow")
@@ -228,7 +235,6 @@ export async function updateWorkflowAction(wfId, updates) {
 }
 
 export async function deactivateWorkflowAction(wfId) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   // Cascade deactivate stages
   const { data: stages } = await supabase.from("wfk_s_workflowstages").select("wfs_id").eq("wf_id", wfId);
@@ -241,7 +247,6 @@ export async function deactivateWorkflowAction(wfId) {
 }
 
 export async function hardDeleteWorkflowAction(wfId) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   // Cascade delete stages
   const { data: stages } = await supabase.from("wfk_s_workflowstages").select("wfs_id").eq("wf_id", wfId);
@@ -257,13 +262,11 @@ export async function hardDeleteWorkflowAction(wfId) {
 // ─── WORKFLOW STAGE ACTIONS ────────────────────────────────
 
 export async function createWorkflowStageAction(payload) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const wfId = payload?.wf_id;
   const stageName = normalizeText(payload?.stage_name);
   const stageDesc = sanitizeOptionalText(payload?.stage_description);
   const stagetypeId = payload?.stagetype_id ?? null;
-  const orgroleId = payload?.orgrole_id ?? null;
   const isActive = hasOwn(payload || {}, "is_active") ? normalizeBoolean(payload?.is_active) : true;
 
   if (wfId == null || wfId === "") throw new Error("Workflow id is required.");
@@ -278,14 +281,13 @@ export async function createWorkflowStageAction(payload) {
   ) + 1;
 
   const { data, error } = await supabase.from("wfk_s_workflowstages")
-    .insert({ wf_id: wfId, stage_name: stageName, stage_description: stageDesc, stage_order: nextOrder, stagetype_id: stagetypeId, orgrole_id: orgroleId, is_active: isActive })
+    .insert({ wf_id: wfId, stage_name: stageName, stage_description: stageDesc, stage_order: nextOrder, stagetype_id: stagetypeId, is_active: isActive })
     .select("*").single();
   if (error) throw new Error(error.message || "Failed to create workflow stage");
   return data;
 }
 
 export async function updateWorkflowStageAction(stageId, updates) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const payload = {};
   if (hasOwn(updates, "stage_name")) {
@@ -295,7 +297,6 @@ export async function updateWorkflowStageAction(stageId, updates) {
   }
   if (hasOwn(updates, "stage_description")) payload.stage_description = sanitizeOptionalText(updates.stage_description);
   if (hasOwn(updates, "stagetype_id")) payload.stagetype_id = updates.stagetype_id ?? null;
-  if (hasOwn(updates, "orgrole_id")) payload.orgrole_id = updates.orgrole_id ?? null;
   if (hasOwn(updates, "is_active")) payload.is_active = normalizeBoolean(updates.is_active);
   if (Object.keys(payload).length === 0) throw new Error("No valid stage updates supplied.");
 
@@ -306,7 +307,6 @@ export async function updateWorkflowStageAction(stageId, updates) {
 }
 
 export async function deactivateWorkflowStageAction(stageId) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("wfk_s_workflowstages").update({ is_active: false }).eq("wfs_id", stageId);
   if (error) throw new Error(error.message || "Failed to deactivate workflow stage");
@@ -314,7 +314,6 @@ export async function deactivateWorkflowStageAction(stageId) {
 }
 
 export async function hardDeleteWorkflowStageAction(stageId) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   await supabase.from("wfk_m_stageparticipant").delete().eq("wfs_id", stageId);
   const { error } = await supabase.from("wfk_s_workflowstages").delete().eq("wfs_id", stageId);
@@ -325,7 +324,6 @@ export async function hardDeleteWorkflowStageAction(stageId) {
 // ─── ORDER ACTION ──────────────────────────────────────────
 
 export async function saveWorkflowOrderAction(wfIds) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const requestedIds = (Array.isArray(wfIds) ? wfIds : [])
     .map((id) => (typeof id === "string" && id.trim() !== "" && Number.isFinite(Number(id)) ? Number(id) : id))
@@ -356,7 +354,6 @@ export async function saveWorkflowOrderAction(wfIds) {
 // ─── STAGE TYPE ACTIONS ────────────────────────────────────
 
 export async function createStageTypeAction(payload) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const name = normalizeText(payload?.stagetype_name);
   const desc = sanitizeOptionalText(payload?.stagetype_description);
@@ -368,7 +365,6 @@ export async function createStageTypeAction(payload) {
 }
 
 export async function updateStageTypeAction(id, updates) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const payload = {};
   if (hasOwn(updates, "stagetype_name")) {
@@ -385,7 +381,6 @@ export async function updateStageTypeAction(id, updates) {
 }
 
 export async function deactivateStageTypeAction(id) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("wfk_s_stagetype").delete().eq("stagetype_id", id);
   if (error) throw new Error(error.message || "Failed to delete stage type");
@@ -399,7 +394,6 @@ export async function hardDeleteStageTypeAction(id) {
 // ─── APPROVAL TYPE ACTIONS ─────────────────────────────────
 
 export async function createApprovalTypeAction(payload) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const name = normalizeText(payload?.approvaltype_name);
   const desc = sanitizeOptionalText(payload?.approvaltype_description);
@@ -411,7 +405,6 @@ export async function createApprovalTypeAction(payload) {
 }
 
 export async function updateApprovalTypeAction(id, updates) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const payload = {};
   if (hasOwn(updates, "approvaltype_name")) {
@@ -428,7 +421,6 @@ export async function updateApprovalTypeAction(id, updates) {
 }
 
 export async function deactivateApprovalTypeAction(id) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("wfk_s_approvaltype").delete().eq("approvaltype_id", id);
   if (error) throw new Error(error.message || "Failed to delete approval type");
@@ -442,7 +434,6 @@ export async function hardDeleteApprovalTypeAction(id) {
 // ─── ORG ROLE ACTIONS ──────────────────────────────────────
 
 export async function createOrgRoleAction(payload) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const name = normalizeText(payload?.name);
   const desc = sanitizeOptionalText(payload?.description);
@@ -455,7 +446,6 @@ export async function createOrgRoleAction(payload) {
 }
 
 export async function updateOrgRoleAction(id, updates) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const payload = {};
   if (hasOwn(updates, "name")) {
@@ -473,16 +463,21 @@ export async function updateOrgRoleAction(id, updates) {
 }
 
 export async function deactivateOrgRoleAction(id) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
+  // Cascade deactivate users in charge for this role
+  const { data: userRoles } = await supabase.from("wfk_m_userorgrole").select("user_orgrole_id").eq("role_id", id);
+  for (const ur of userRoles || []) {
+    await supabase.from("wfk_m_userorgrole").update({ is_active: false }).eq("user_orgrole_id", ur.user_orgrole_id);
+  }
   const { error } = await supabase.from("wfk_s_orgrole").update({ is_active: false }).eq("orgrole_id", id);
   if (error) throw new Error(error.message || "Failed to deactivate org role");
   return { id, deactivated: true };
 }
 
 export async function hardDeleteOrgRoleAction(id) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
+  // Cascade delete users in charge for this role
+  await supabase.from("wfk_m_userorgrole").delete().eq("role_id", id);
   const { error } = await supabase.from("wfk_s_orgrole").delete().eq("orgrole_id", id);
   if (error) throw new Error(error.message || "Failed to permanently delete org role");
   return { id, permanentlyDeleted: true };
@@ -491,7 +486,6 @@ export async function hardDeleteOrgRoleAction(id) {
 // ─── STAGE PARTICIPANT ACTIONS ─────────────────────────────
 
 export async function createStageParticipantAction(payload) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const wfsId = payload?.wfs_id;
   const orgroleId = payload?.orgrole_id ?? null;
@@ -505,7 +499,6 @@ export async function createStageParticipantAction(payload) {
 }
 
 export async function updateStageParticipantAction(id, updates) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const payload = {};
   if (hasOwn(updates, "wfs_id")) payload.wfs_id = updates.wfs_id ?? null;
@@ -520,7 +513,6 @@ export async function updateStageParticipantAction(id, updates) {
 }
 
 export async function deactivateStageParticipantAction(id) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("wfk_m_stageparticipant").update({ is_active: false }).eq("stageparticipant_id", id);
   if (error) throw new Error(error.message || "Failed to deactivate stage participant");
@@ -528,7 +520,6 @@ export async function deactivateStageParticipantAction(id) {
 }
 
 export async function hardDeleteStageParticipantAction(id) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("wfk_m_stageparticipant").delete().eq("stageparticipant_id", id);
   if (error) throw new Error(error.message || "Failed to permanently delete stage participant");
@@ -538,7 +529,6 @@ export async function hardDeleteStageParticipantAction(id) {
 // ─── USER ORG ROLE ACTIONS ─────────────────────────────────
 
 export async function createUserOrgRoleAction(payload) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const userId = payload?.user_id;
   const roleId = payload?.role_id;
@@ -553,7 +543,6 @@ export async function createUserOrgRoleAction(payload) {
 }
 
 export async function updateUserOrgRoleAction(id, updates) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const payload = {};
   if (hasOwn(updates, "user_id")) payload.user_id = updates.user_id ?? null;
@@ -568,7 +557,6 @@ export async function updateUserOrgRoleAction(id, updates) {
 }
 
 export async function deactivateUserOrgRoleAction(id) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("wfk_m_userorgrole").update({ is_active: false }).eq("user_orgrole_id", id);
   if (error) throw new Error(error.message || "Failed to deactivate user org role");
@@ -576,7 +564,6 @@ export async function deactivateUserOrgRoleAction(id) {
 }
 
 export async function hardDeleteUserOrgRoleAction(id) {
-  await requireWorkflowAccess();
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("wfk_m_userorgrole").delete().eq("user_orgrole_id", id);
   if (error) throw new Error(error.message || "Failed to permanently delete user org role");
