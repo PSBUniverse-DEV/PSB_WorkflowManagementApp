@@ -6,6 +6,7 @@ export const WORKFLOW_TABS = [
   { key: "workflows", label: "Workflows", icon: "diagram-3" },
   { key: "stage-types", label: "Stage Types", icon: "list" },
   { key: "approval-types", label: "Approval Types", icon: "check-circle" },
+  { key: "status", label: "Status", icon: "flag" },
   { key: "org-roles", label: "Org Roles", icon: "people" },
   { key: "stage-participants", label: "Stage Participants", icon: "person-badge" },
   { key: "user-org-roles", label: "User Org Roles", icon: "person-lines-fill" },
@@ -32,7 +33,7 @@ export default function WorkflowSideNav({ activeTab = "workflows", onSelectTab }
 
   return (
     <aside className="setup-side-nav" aria-label="Workflow configuration">
-      <p className="setup-side-nav-label">WORKFLOW SETUP</p>
+      <p className="setup-side-nav-label">Workflow Setup</p>
       <div className="setup-side-nav-list">
         {WORKFLOW_TABS.map((item) => {
           const isActive = activeTab === item.key;

@@ -50,7 +50,6 @@ function useWorkflowSetup({ workflows = [], stages = [], stageTypes = [], orgRol
   const [workflowDraft, setWorkflowDraft] = useState({ name: "", desc: "", compId: "", appId: "", deptId: "" });
   const [stageDraft, setStageDraft] = useState({ name: "", desc: "", stagetypeId: "", orgroleId: "" });
   const [participantDraft, setParticipantDraft] = useState({ orgroleId: "", approvaltypeId: "", isActive: true });
-  const [editingWfId, setEditingWfId] = useState(null);
   const [editingStageId, setEditingStageId] = useState(null);
   const [expandedWfId, setExpandedWfId] = useState(null);
   const [expandedStageId, setExpandedStageId] = useState(null);
@@ -65,7 +64,7 @@ function useWorkflowSetup({ workflows = [], stages = [], stageTypes = [], orgRol
     setPendingBatch(createEmptyBatchState()); setDialog(EMPTY_DIALOG);
     setWorkflowDraft({ name: "", desc: "", compId: "", appId: "", deptId: "" }); setStageDraft({ name: "", desc: "", stagetypeId: "", orgroleId: "" });
     setParticipantDraft({ orgroleId: "", approvaltypeId: "", isActive: true });
-    setEditingWfId(null); setEditingStageId(null);
+    setEditingStageId(null);
   }, [seedWorkflows, seedStages, seedStageParticipants, seedUserOrgRoles]);
 
   const currentOrderSig = useMemo(() => {
@@ -209,7 +208,7 @@ function useWorkflowSetup({ workflows = [], stages = [], stageTypes = [], orgRol
     setOrderedWorkflows(seedWorkflows); setAllStages(seedStages);
     setPendingBatch(createEmptyBatchState()); setPersistedOrderSig(buildOrderSignature(seedWorkflows));
     setDialog(EMPTY_DIALOG); setWorkflowDraft({ name: "", desc: "", compId: "", appId: "", deptId: "" }); setStageDraft({ name: "", desc: "", stagetypeId: "", orgroleId: "" });
-    setEditingWfId(null); setEditingStageId(null);
+    setEditingStageId(null);
     updateSelectedWfInQuery(seedWorkflows[0]?.wf_id ?? null);
   }, [isMutatingAction, isSavingOrder, seedWorkflows, seedStages, updateSelectedWfInQuery]);
 
@@ -228,7 +227,7 @@ function useWorkflowSetup({ workflows = [], stages = [], stageTypes = [], orgRol
       toastSuccess(`Saved ${pendingSummary.total} batched change(s).`, "Save Batch");
     } catch (error) {
       toastError(error?.message || "Failed to save batched changes.");
-    } finally { setIsMutatingAction(false); setIsSavingOrder(false); setEditingWfId(null); setEditingStageId(null); }
+    } finally { setIsMutatingAction(false); setIsSavingOrder(false); setEditingStageId(null); }
   }, [currentOrderSig, hasPendingChanges, isMutatingAction, isSavingOrder, orderedWorkflows, pendingBatch, pendingSummary.total, router, selectedWf?.wf_id, updateSelectedWfInQuery]);
 
   const closeDialog = useCallback(() => { if (!isMutatingAction) setDialog(EMPTY_DIALOG); }, [isMutatingAction]);
@@ -504,22 +503,10 @@ function useWorkflowSetup({ workflows = [], stages = [], stageTypes = [], orgRol
   const submitToggleParticipant = useCallback(() => { const row = dialog?.target; const nextIsActive = Boolean(dialog?.nextIsActive); if (!row?.stageparticipant_id) { toastError("Invalid participant."); return; } const participantId = row.stageparticipant_id; setAllStageParticipants((prev) => prev.map((sp, i) => isSameId(sp?.stageparticipant_id, participantId) ? mapStageParticipantRow({ ...sp, is_active: nextIsActive }, i) : sp)); setPendingBatch((prev) => { if (isTempStageParticipantId(participantId)) return { ...prev, participantCreates: prev.participantCreates.map((e) => isSameId(e?.tempId, participantId) ? { ...e, payload: { ...e.payload, is_active: nextIsActive } } : e), participantUpdates: removeObjectKey(prev.participantUpdates, participantId) }; return { ...prev, participantUpdates: { ...prev.participantUpdates, [String(participantId)]: mergeUpdatePatch(prev.participantUpdates?.[String(participantId)], { is_active: nextIsActive }) } }; }); setDialog(EMPTY_DIALOG); toastSuccess(`Participant ${nextIsActive ? "enable" : "disable"} staged for Save Batch.`, "Batching"); }, [dialog]);
   const submitDeactivateParticipant = useCallback(() => { const row = dialog?.target; if (!row?.stageparticipant_id) { toastError("Invalid participant."); return; } const participantId = row.stageparticipant_id; if (isTempStageParticipantId(participantId)) { setAllStageParticipants((items) => items.filter((sp) => !isSameId(sp?.stageparticipant_id, participantId))); setPendingBatch((prev) => ({ ...prev, participantCreates: prev.participantCreates.filter((e) => !isSameId(e?.tempId, participantId)), participantUpdates: removeObjectKey(prev.participantUpdates, participantId) })); setDialog(EMPTY_DIALOG); toastSuccess("Staged participant removed.", "Batching"); return; } setPendingBatch((prev) => ({ ...prev, participantDeactivations: appendUniqueId(prev.participantDeactivations, participantId) })); setDialog(EMPTY_DIALOG); toastSuccess("Participant deactivation staged for Save Batch.", "Batching"); }, [dialog]);
 
-  // ── Inline editing ──
+  // ── Inline editing (stage only; workflow uses modal edit) ──
 
-  const startEditingWf = useCallback((row) => { if (isSavingOrder || isMutatingAction) return; const id = String(row?.wf_id ?? ""); setEditingWfId((prev) => prev === id ? null : id); }, [isMutatingAction, isSavingOrder]);
-  const stopEditingWf = useCallback(() => { setEditingWfId(null); }, []);
   const startEditingStage = useCallback((row) => { if (isSavingOrder || isMutatingAction) return; const id = String(row?.wfs_id ?? ""); setEditingStageId((prev) => prev === id ? null : id); }, [isMutatingAction, isSavingOrder]);
   const stopEditingStage = useCallback(() => { setEditingStageId(null); }, []);
-
-  const handleInlineEditWorkflow = useCallback((row, key, value) => {
-    const wfId = row?.wf_id;
-    if (!wfId || isSavingOrder || isMutatingAction) return;
-    setOrderedWorkflows((prev) => prev.map((w, i) => isSameId(w?.wf_id, wfId) ? mapWorkflowRow({ ...w, [key]: value || null }, i) : w));
-    setPendingBatch((prev) => {
-      if (isTempWorkflowId(wfId)) return { ...prev, wfCreates: prev.wfCreates.map((e) => isSameId(e?.tempId, wfId) ? { ...e, payload: { ...e.payload, [key]: value || null } } : e) };
-      return { ...prev, wfUpdates: { ...prev.wfUpdates, [String(wfId)]: mergeUpdatePatch(prev.wfUpdates?.[String(wfId)], { [key]: value || null }) } };
-    });
-  }, [isMutatingAction, isSavingOrder]);
 
   const handleInlineEditStage = useCallback((row, key, value) => {
     const stageId = row?.wfs_id;
@@ -550,8 +537,8 @@ function useWorkflowSetup({ workflows = [], stages = [], stageTypes = [], orgRol
     openAddParticipantDialog, openEditParticipantDialog, openToggleParticipantDialog, openDeactivateParticipantDialog,
     stageHardDeleteParticipant, unstageHardDeleteParticipant,
     submitAddParticipant, submitEditParticipant, submitToggleParticipant, submitDeactivateParticipant,
-    handleInlineEditWorkflow, handleInlineEditStage,
-    editingWfId, startEditingWf, stopEditingWf, editingStageId, startEditingStage, stopEditingStage,
+    handleInlineEditStage,
+    editingStageId, startEditingStage, stopEditingStage,
   };
 }
 
@@ -593,7 +580,7 @@ function WorkflowTable({
   companyOptions, appOptions, departmentOptions,
   pendingDeactivatedWfIds, pendingDeactivatedStageIds,
   handleWorkflowRowClick, handleWorkflowReorder,
-  editingWfId, onStartEditingWf, onStopEditingWf, onInlineEditWf,
+  openEditWorkflowDialog,
   openToggleWorkflowDialog, openDeactivateWorkflowDialog, stageHardDeleteWorkflow, onUndoBatchActionWf,
   openAddStageDialog,
   // stage props
@@ -609,15 +596,12 @@ function WorkflowTable({
   expandedParticipantId, handleParticipantRowClick,
 }) {
   const columns = useMemo(() => [
-    { key: "wf_id", label: "WF ID", width: "10%", sortable: true, render: (row) => <span className="text-muted small">{row?.wf_id ?? "--"}</span> },
+    { key: "wf_id", label: "WF ID", width: "10%", sortable: true, defaultVisible: false, render: (row) => <span className="text-muted small">{row?.wf_id ?? "--"}</span> },
     { key: "wf_name", label: "Workflow Name", width: "24%", sortable: true, render: (row) => {
-      const m = batchMarker(row?.__batchState || ""); const isEditing = String(row?.wf_id ?? "") === String(editingWfId ?? ""); const editDisabled = !isEditing || isSavingOrder || isMutatingAction; const isSelected = isSameId(row?.wf_id, selectedWf?.wf_id);
-      return (<span className={isSelected ? "fw-semibold text-primary" : ""}><InlineEditCell value={row?.wf_name || ""} onCommit={(val) => onInlineEditWf?.(row, "wf_name", val)} onCancel={onStopEditingWf} disabled={editDisabled} />{m.text ? <span className={m.cls}>{m.text}</span> : null}</span>);
+      const m = batchMarker(row?.__batchState || ""); const isSelected = isSameId(row?.wf_id, selectedWf?.wf_id);
+      return (<span className={isSelected ? "fw-semibold text-primary" : ""}>{row?.wf_name || "--"}{m.text ? <span className={m.cls}>{m.text}</span> : null}</span>);
     }},
-    { key: "wf_description", label: "Description", width: "24%", sortable: true, render: (row) => {
-      const isEditing = String(row?.wf_id ?? "") === String(editingWfId ?? ""); const editDisabled = !isEditing || isSavingOrder || isMutatingAction;
-      return <InlineEditCell value={row?.wf_description || ""} onCommit={(val) => onInlineEditWf?.(row, "wf_description", val)} onCancel={onStopEditingWf} disabled={editDisabled} />;
-    }},
+    { key: "wf_description", label: "Description", width: "24%", sortable: true, render: (row) => <span className="small">{row?.wf_description || "--"}</span> },
     { key: "comp_id", label: "Company", width: "12%", sortable: true, render: (row) => {
       const company = companyOptions.find((c) => isSameId(c?.comp_id, row?.comp_id));
       return <span className="small">{company?.comp_name || row?.comp_id || "--"}</span>;
@@ -630,18 +614,17 @@ function WorkflowTable({
       const dept = departmentOptions.find((d) => isSameId(d?.dept_id, row?.dept_id));
       return <span className="small">{dept?.dept_name || row?.dept_id || "--"}</span>;
     }},
-    { key: "display_order", label: "Order", width: "8%", sortable: true, align: "center", render: (row) => <span className="text-muted small">{row?.display_order ?? "--"}</span> },
+    { key: "display_order", label: "Order", width: "8%", sortable: true,defaultVisible: false,  align: "center", render: (row) => <span className="text-muted small">{row?.display_order ?? "--"}</span> },
     { key: "is_active_bool", label: "Active", width: "10%", sortable: true, align: "center", render: (row) => <StatusBadge status={row?.is_active_bool ? "active" : "inactive"} /> },
-  ], [editingWfId, isMutatingAction, isSavingOrder, onInlineEditWf, onStopEditingWf, selectedWf?.wf_id, companyOptions, appOptions, departmentOptions]);
+  ], [selectedWf?.wf_id, companyOptions, appOptions, departmentOptions]);
 
   const actions = useMemo(() => [
-    { key: "edit-workflow", label: "Edit", type: "secondary", icon: "pen", visible: (r) => String(r?.wf_id ?? "") !== String(editingWfId ?? ""), disabled: () => isSavingOrder || isMutatingAction, onClick: (r) => onStartEditingWf(r) },
-    { key: "cancel-edit-workflow", label: "Cancel", type: "secondary", icon: "xmark", visible: (r) => String(r?.wf_id ?? "") === String(editingWfId ?? ""), onClick: () => onStopEditingWf() },
-    { key: "add-stage", label: "+ Add Stage", type: "success", icon: "plus", visible: (r) => String(r?.wf_id ?? "") !== String(editingWfId ?? ""), disabled: () => isSavingOrder || isMutatingAction, onClick: () => openAddStageDialog() },
-    { key: "restore-workflow", label: "Restore", type: "secondary", icon: "rotate-left", visible: (r) => (!Boolean(r?.is_active_bool) || pendingDeactivatedWfIds.has(String(r?.wf_id ?? ""))) && String(r?.wf_id ?? "") !== String(editingWfId ?? ""), disabled: () => isSavingOrder || isMutatingAction, onClick: (r) => openToggleWorkflowDialog(r) },
-    { key: "deactivate-workflow", label: "Deactivate", type: "secondary", icon: "ban", visible: (r) => Boolean(r?.is_active_bool) && !pendingDeactivatedWfIds.has(String(r?.wf_id ?? "")) && String(r?.wf_id ?? "") !== String(editingWfId ?? ""), disabled: () => isSavingOrder || isMutatingAction, onClick: (r) => openDeactivateWorkflowDialog(r) },
-    { key: "delete-workflow", label: "Delete", type: "danger", icon: "trash", visible: (r) => String(r?.wf_id ?? "") !== String(editingWfId ?? ""), confirm: true, confirmMessage: (r) => `Permanently delete ${r?.wf_name || "this workflow"}? This action cannot be undone.`, disabled: () => isSavingOrder || isMutatingAction, onClick: (r) => stageHardDeleteWorkflow(r) },
-  ], [editingWfId, isMutatingAction, isSavingOrder, onStartEditingWf, onStopEditingWf, openAddStageDialog, openDeactivateWorkflowDialog, openToggleWorkflowDialog, pendingDeactivatedWfIds, stageHardDeleteWorkflow]);
+    { key: "edit-workflow", label: "Edit", type: "secondary", icon: "pen", disabled: () => isSavingOrder || isMutatingAction, onClick: (r) => openEditWorkflowDialog(r) },
+    { key: "add-stage", label: "+ Add Stage", type: "success", icon: "plus", disabled: () => isSavingOrder || isMutatingAction, onClick: () => openAddStageDialog() },
+    { key: "restore-workflow", label: "Restore", type: "secondary", icon: "rotate-left", visible: (r) => (!Boolean(r?.is_active_bool) || pendingDeactivatedWfIds.has(String(r?.wf_id ?? ""))), disabled: () => isSavingOrder || isMutatingAction, onClick: (r) => openToggleWorkflowDialog(r) },
+    { key: "deactivate-workflow", label: "Deactivate", type: "secondary", icon: "ban", visible: (r) => Boolean(r?.is_active_bool) && !pendingDeactivatedWfIds.has(String(r?.wf_id ?? "")), disabled: () => isSavingOrder || isMutatingAction, onClick: (r) => openDeactivateWorkflowDialog(r) },
+    { key: "delete-workflow", label: "Delete", type: "danger", icon: "trash", confirm: true, confirmMessage: (r) => `Permanently delete ${r?.wf_name || "this workflow"}? This action cannot be undone.`, disabled: () => isSavingOrder || isMutatingAction, onClick: (r) => stageHardDeleteWorkflow(r) },
+  ], [isMutatingAction, isSavingOrder, openAddStageDialog, openDeactivateWorkflowDialog, openEditWorkflowDialog, openToggleWorkflowDialog, pendingDeactivatedWfIds, stageHardDeleteWorkflow]);
 
   // ── Stage columns for nested detail ──
   const stageColumns = useMemo(() => [
@@ -952,8 +935,7 @@ export default function WorkflowSetupView({ workflows, stages, stageTypes, orgRo
         isSavingOrder={h.isSavingOrder} isMutatingAction={h.isMutatingAction}
         pendingDeactivatedWfIds={h.pendingDeactivatedWfIds} pendingDeactivatedStageIds={h.pendingDeactivatedStageIds}
         handleWorkflowRowClick={h.handleWorkflowRowClick} handleWorkflowReorder={h.handleWorkflowReorder}
-        editingWfId={h.editingWfId} onStartEditingWf={h.startEditingWf} onStopEditingWf={h.stopEditingWf}
-        onInlineEditWf={h.handleInlineEditWorkflow}
+        openEditWorkflowDialog={h.openEditWorkflowDialog}
         openToggleWorkflowDialog={h.openToggleWorkflowDialog} openDeactivateWorkflowDialog={h.openDeactivateWorkflowDialog}
         stageHardDeleteWorkflow={h.stageHardDeleteWorkflow} onUndoBatchActionWf={h.unstageHardDeleteWorkflow}
         openAddStageDialog={h.openAddStageDialog}

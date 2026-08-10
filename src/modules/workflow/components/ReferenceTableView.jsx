@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, InlineEditCell, Input, Modal, StatusBadge, TableZ, toastError, toastSuccess } from "@/shared/components/ui";
+import { Button, Input, Modal, StatusBadge, TableZ, toastError, toastSuccess } from "@/shared/components/ui";
 import WorkflowSideNav from "./WorkflowSideNav";
 import {
   isSameId, compareText, normalizeText,
@@ -43,7 +43,6 @@ function useReferenceTable({ items = [], config }) {
   const [isSavingBatch, setIsSavingBatch] = useState(false);
   const [dialog, setDialog] = useState(EMPTY_DIALOG);
   const [draft, setDraft] = useState({ name: "", desc: "" });
-  const [editingId, setEditingId] = useState(null);
   const batchActiveRef = useRef(false);
 
   useEffect(() => {
@@ -54,7 +53,6 @@ function useReferenceTable({ items = [], config }) {
     setDraft({ name: "", desc: "" });
     setIsMutatingAction(false);
     setIsSavingBatch(false);
-    setEditingId(null);
   }, [seedRows]);
 
   const pendingSummary = useMemo(() => {
@@ -169,7 +167,6 @@ function useReferenceTable({ items = [], config }) {
     setChanges(createEmptyRefChanges());
     setDialog(EMPTY_DIALOG);
     setDraft({ name: "", desc: "" });
-    setEditingId(null);
     toastSuccess("Batch changes canceled.", "Batching");
   }, [hasPendingChanges, isMutatingAction, isSavingBatch, seedRows]);
 
@@ -188,7 +185,6 @@ function useReferenceTable({ items = [], config }) {
     } finally {
       setIsMutatingAction(false);
       setIsSavingBatch(false);
-      setEditingId(null);
     }
   }, [actions, changes, hasPendingChanges, isMutatingAction, isSavingBatch, pendingSummary.total, router]);
 
@@ -272,40 +268,13 @@ function useReferenceTable({ items = [], config }) {
     toastSuccess("Deactivation staged for Save Batch.", "Batching");
   }, [dialog?.target]);
 
-  const startEditing = useCallback((row) => {
-    if (isMutatingAction || isSavingBatch) return;
-    const id = String(row?.ref_id ?? "");
-    setEditingId((prev) => prev === id ? null : id);
-  }, [isMutatingAction, isSavingBatch]);
-
-  const stopEditing = useCallback(() => { setEditingId(null); }, []);
-
-  const handleInlineEdit = useCallback((row, key, value) => {
-    const id = row?.ref_id;
-    if (!id || isMutatingAction || isSavingBatch) return;
-    setOrderedRows((prev) => prev.map((r, i) => isSameId(r?.ref_id, id) ? mapRefRow({ ...r, [key]: value || null }, i, { idField, nameField, descField }) : r));
-    setChanges((prev) => {
-      if (isTempRefId(id)) {
-        return {
-          ...prev,
-          creates: prev.creates.map((entry) => isSameId(entry?.tempId, id) ? { ...entry, payload: { ...entry.payload, [key]: value || null } } : entry),
-        };
-      }
-      return {
-        ...prev,
-        updates: { ...prev.updates, [String(id)]: mergeUpdatePatch(prev.updates?.[String(id)], { [key]: value || null }) },
-      };
-    });
-  }, [isMutatingAction, isSavingBatch, idField, nameField, descField]);
-
   return {
     decoratedRows, dialog, draft, isSavingBatch, isMutatingAction,
     pendingSummary, hasPendingChanges, pendingDeactivatedIds,
     setDialog, setDraft, closeDialog, openAddDialog, openEditDialog,
     openToggleDialog, openDeactivateDialog, stageHardDelete, unstageHardDelete,
     handleCancelBatch, handleSaveBatch, submitAdd, submitEdit,
-    submitToggle, submitDeactivate, editingId, startEditing,
-    stopEditing, handleInlineEdit,
+    submitToggle, submitDeactivate,
   };
 }
 
@@ -341,7 +310,7 @@ function ReferenceHeader({ title, subtitle, hasPendingChanges, pendingSummary, i
 
 function ReferenceTable({
   decoratedRows, isMutatingAction, isSavingBatch, pendingDeactivatedIds,
-  editingId, onStartEditing, onStopEditing, onInlineEdit,
+  openEditDialog,
   openToggleDialog, openDeactivateDialog, stageHardDelete, onUndoBatchAction,
   nameLabel, descLabel, extraColumns = [],
 }) {
@@ -351,11 +320,9 @@ function ReferenceTable({
         key: "ref_name", label: nameLabel, width: "30%", sortable: true,
         render: (row) => {
           const m = batchMarker(row?.__batchState || "");
-          const isEditing = String(row?.ref_id ?? "") === String(editingId ?? "");
-          const editDisabled = !isEditing || isMutatingAction || isSavingBatch;
           return (
             <span>
-              <InlineEditCell value={row?.ref_name || ""} onCommit={(val) => onInlineEdit?.(row, "ref_name", val)} onCancel={onStopEditing} disabled={editDisabled} />
+              {row?.ref_name || "--"}
               {m.text ? <span className={m.cls}>{m.text}</span> : null}
             </span>
           );
@@ -363,11 +330,7 @@ function ReferenceTable({
       },
       {
         key: "ref_desc", label: descLabel, width: "48%", sortable: true,
-        render: (row) => {
-          const isEditing = String(row?.ref_id ?? "") === String(editingId ?? "");
-          const editDisabled = !isEditing || isMutatingAction || isSavingBatch;
-          return <InlineEditCell value={row?.ref_desc === "--" ? "" : (row?.ref_desc || "")} onCommit={(val) => onInlineEdit?.(row, "ref_desc", val)} onCancel={onStopEditing} disabled={editDisabled} />;
-        },
+        render: (row) => <span className="small">{row?.ref_desc === "--" ? "" : (row?.ref_desc || "--")}</span>,
       },
       ...extraColumns,
       {
@@ -375,18 +338,17 @@ function ReferenceTable({
         render: (row) => <StatusBadge status={row?.is_active_bool ? "active" : "inactive"} />,
       },
     ],
-    [editingId, isMutatingAction, isSavingBatch, onInlineEdit, onStopEditing, nameLabel, descLabel, extraColumns],
+    [nameLabel, descLabel, extraColumns],
   );
 
   const actions = useMemo(
     () => [
-      { key: "edit", label: "Edit", type: "secondary", icon: "pen", visible: (row) => String(row?.ref_id ?? "") !== String(editingId ?? ""), disabled: () => isMutatingAction || isSavingBatch, onClick: (row) => onStartEditing(row) },
-      { key: "cancel-edit", label: "Cancel", type: "secondary", icon: "xmark", visible: (row) => String(row?.ref_id ?? "") === String(editingId ?? ""), onClick: () => onStopEditing() },
-      { key: "restore", label: "Restore", type: "secondary", icon: "rotate-left", visible: (row) => (!Boolean(row?.is_active_bool) || pendingDeactivatedIds.has(String(row?.ref_id ?? ""))) && String(row?.ref_id ?? "") !== String(editingId ?? ""), disabled: () => isMutatingAction || isSavingBatch, onClick: (row) => openToggleDialog(row) },
-      { key: "deactivate", label: "Deactivate", type: "secondary", icon: "ban", visible: (row) => Boolean(row?.is_active_bool) && !pendingDeactivatedIds.has(String(row?.ref_id ?? "")) && String(row?.ref_id ?? "") !== String(editingId ?? ""), disabled: () => isMutatingAction || isSavingBatch, onClick: (row) => openDeactivateDialog(row) },
-      { key: "delete", label: "Delete", type: "danger", icon: "trash", visible: (row) => String(row?.ref_id ?? "") !== String(editingId ?? ""), confirm: true, confirmMessage: (row) => `Permanently delete ${row?.ref_name || "this record"}? This action cannot be undone.`, disabled: () => isMutatingAction || isSavingBatch, onClick: (row) => stageHardDelete(row) },
+      { key: "edit", label: "Edit", type: "secondary", icon: "pen", disabled: () => isMutatingAction || isSavingBatch, onClick: (row) => openEditDialog(row) },
+      { key: "restore", label: "Restore", type: "secondary", icon: "rotate-left", visible: (row) => !Boolean(row?.is_active_bool) || pendingDeactivatedIds.has(String(row?.ref_id ?? "")), disabled: () => isMutatingAction || isSavingBatch, onClick: (row) => openToggleDialog(row) },
+      { key: "deactivate", label: "Deactivate", type: "secondary", icon: "ban", visible: (row) => Boolean(row?.is_active_bool) && !pendingDeactivatedIds.has(String(row?.ref_id ?? "")), disabled: () => isMutatingAction || isSavingBatch, onClick: (row) => openDeactivateDialog(row) },
+      { key: "delete", label: "Delete", type: "danger", icon: "trash", confirm: true, confirmMessage: (row) => `Permanently delete ${row?.ref_name || "this record"}? This action cannot be undone.`, disabled: () => isMutatingAction || isSavingBatch, onClick: (row) => stageHardDelete(row) },
     ],
-    [editingId, isMutatingAction, isSavingBatch, onStartEditing, onStopEditing, openDeactivateDialog, openToggleDialog, pendingDeactivatedIds, stageHardDelete],
+    [isMutatingAction, isSavingBatch, openDeactivateDialog, openEditDialog, openToggleDialog, pendingDeactivatedIds, stageHardDelete],
   );
 
   return (
@@ -440,7 +402,7 @@ function ReferenceDialog({ dialog, draft, isMutatingAction, isSavingBatch, setDr
 
       {dialog.kind === "deactivate" ? (
         <div>
-          <p className="mb-3">Deactivate <strong>"{dialog.target?.ref_name || "--"}"</strong>? This action will be staged for Save Batch.</p>
+          <p className="mb-3">Deactivate <strong>&ldquo;{dialog.target?.ref_name || "--"}&rdquo;</strong>? This action will be staged for Save Batch.</p>
           <div className="d-flex justify-content-end gap-2">
             <Button variant="ghost" size="sm" onClick={closeDialog} disabled={isBusy}>Cancel</Button>
             <Button variant="warning" size="sm" loading={isBusy} disabled={isBusy} onClick={submitDeactivate}>Deactivate</Button>
@@ -473,8 +435,7 @@ export default function ReferenceTableView({ items, config, embedded = false, sh
         decoratedRows={h.decoratedRows}
         isMutatingAction={h.isMutatingAction} isSavingBatch={h.isSavingBatch}
         pendingDeactivatedIds={h.pendingDeactivatedIds}
-        editingId={h.editingId} onStartEditing={h.startEditing} onStopEditing={h.stopEditing}
-        onInlineEdit={h.handleInlineEdit}
+        openEditDialog={h.openEditDialog}
         openToggleDialog={h.openToggleDialog} openDeactivateDialog={h.openDeactivateDialog}
         stageHardDelete={h.stageHardDelete} onUndoBatchAction={h.unstageHardDelete}
         nameLabel={nameLabel} descLabel={descLabel} extraColumns={extraColumns}

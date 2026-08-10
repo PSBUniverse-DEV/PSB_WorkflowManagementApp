@@ -30,7 +30,8 @@ export default function WorkflowView({
   userOrgRoles = [],
   companies = [],
   departments = [],
-  apps =[],
+  apps = [],
+  statuses = [],
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -107,6 +108,17 @@ export default function WorkflowView({
       addLabel: "+ Add Approval Type",
       actions: REF_ACTIONS.approvaltype,
     },
+    "status": {
+      idField: "status_id",
+      nameField: "status_name",
+      descField: "status_description",
+      nameLabel: "Status Name",
+      descLabel: "Description",
+      title: "Status Configuration",
+      subtitle: "Manage workflow status reference records.",
+      addLabel: "+ Add Status",
+      actions: REF_ACTIONS.status,
+    },
   };
 
   let content = null;
@@ -120,7 +132,7 @@ export default function WorkflowView({
         orgRoles={orgRoles}
         companies={companies}
         departments={departments}
-       apps={apps}
+        apps={apps}
         approvalTypes={approvalTypes}
         stageParticipants={stageParticipants}
         userOrgRoles={userOrgRoles}
@@ -158,6 +170,7 @@ export default function WorkflowView({
     const itemsMap = {
       "stage-types": stageTypes,
       "approval-types": approvalTypes,
+      "status": statuses,
     };
     content = (
       <ReferenceTableView

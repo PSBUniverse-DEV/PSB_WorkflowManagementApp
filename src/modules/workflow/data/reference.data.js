@@ -9,6 +9,7 @@
 import {
   createStageTypeAction, updateStageTypeAction, deactivateStageTypeAction, hardDeleteStageTypeAction,
   createApprovalTypeAction, updateApprovalTypeAction, deactivateApprovalTypeAction, hardDeleteApprovalTypeAction,
+  createStatusAction, updateStatusAction, deactivateStatusAction, hardDeleteStatusAction,
   createOrgRoleAction, updateOrgRoleAction, deactivateOrgRoleAction, hardDeleteOrgRoleAction,
   createStageParticipantAction, updateStageParticipantAction, deactivateStageParticipantAction, hardDeleteStageParticipantAction,
   createUserOrgRoleAction, updateUserOrgRoleAction, deactivateUserOrgRoleAction, hardDeleteUserOrgRoleAction,
@@ -157,6 +158,13 @@ export const REF_ACTIONS = {
     deactivateAction: deactivateApprovalTypeAction,
     hardDeleteAction: hardDeleteApprovalTypeAction,
     idField: "approvaltype_id",
+  },
+  status: {
+    createAction: createStatusAction,
+    updateAction: updateStatusAction,
+    deactivateAction: deactivateStatusAction,
+    hardDeleteAction: hardDeleteStatusAction,
+    idField: "status_id",
   },
   orgrole: {
     createAction: createOrgRoleAction,

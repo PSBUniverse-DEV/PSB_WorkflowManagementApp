@@ -97,6 +97,13 @@ export async function loadApprovalTypesData() {
   return { items: data ?? [] };
 }
 
+export async function loadStatusesData() {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.from("wfk_s_status").select("*").order("status_name", { ascending: true });
+  if (error) throw new Error(error.message || "Failed to fetch statuses");
+  return { items: data ?? [] };
+}
+
 export async function loadOrgRolesData() {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("wfk_s_orgrole").select("*").order("name", { ascending: true });
@@ -143,7 +150,7 @@ export async function loadWorkflowOverviewData() {
 
   const [
     wfResult, stagesResult, stageTypesResult, approvalTypesResult, orgRolesResult,
-    participantsResult, usersResult, userOrgRolesResult, companiesResult, departmentsResult, appsResult,
+    participantsResult, usersResult, userOrgRolesResult, companiesResult, departmentsResult, appsResult, statusesResult,
   ] = await Promise.all([
     supabase.from("wfk_s_workflow").select("*"),
     supabase.from("wfk_s_workflowstages").select("*"),
@@ -156,6 +163,7 @@ export async function loadWorkflowOverviewData() {
     supabase.from("psb_s_company").select("comp_id, comp_name"),
     supabase.from("psb_s_department").select("dept_id, dept_name, comp_id"),
     supabase.from("psb_s_application").select("app_id, app_name"),
+    supabase.from("wfk_s_status").select("*"),
   ]);
 
   if (wfResult.error) throw new Error(wfResult.error.message || "Failed to fetch workflows");
@@ -182,6 +190,7 @@ export async function loadWorkflowOverviewData() {
     companies: Array.isArray(companiesResult.data) ? companiesResult.data : [],
     departments: Array.isArray(departmentsResult.data) ? departmentsResult.data : [],
     apps: Array.isArray(appsResult.data) ? appsResult.data : [],
+    statuses: Array.isArray(statusesResult.data) ? statusesResult.data : [],
   };
 }
 
@@ -429,6 +438,46 @@ export async function deactivateApprovalTypeAction(id) {
 
 export async function hardDeleteApprovalTypeAction(id) {
   return deactivateApprovalTypeAction(id);
+}
+
+// ─── STATUS ACTIONS ────────────────────────────────────────
+
+export async function createStatusAction(payload) {
+  const supabase = getSupabaseAdmin();
+  const name = normalizeText(payload?.status_name);
+  const desc = sanitizeOptionalText(payload?.status_description);
+  if (!name) throw new Error("Status name is required.");
+  const { data, error } = await supabase.from("wfk_s_status")
+    .insert({ status_name: name, status_description: desc }).select("*").single();
+  if (error) throw new Error(error.message || "Failed to create status");
+  return data;
+}
+
+export async function updateStatusAction(id, updates) {
+  const supabase = getSupabaseAdmin();
+  const payload = {};
+  if (hasOwn(updates, "status_name")) {
+    const name = normalizeText(updates.status_name);
+    if (!name) throw new Error("Status name is required.");
+    payload.status_name = name;
+  }
+  if (hasOwn(updates, "status_description")) payload.status_description = sanitizeOptionalText(updates.status_description);
+  if (Object.keys(payload).length === 0) throw new Error("No valid status updates supplied.");
+  const { data, error } = await supabase.from("wfk_s_status")
+    .update(payload).eq("status_id", id).select("*").single();
+  if (error) throw new Error(error.message || "Failed to update status");
+  return data;
+}
+
+export async function deactivateStatusAction(id) {
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.from("wfk_s_status").delete().eq("status_id", id);
+  if (error) throw new Error(error.message || "Failed to delete status");
+  return { id, deactivated: true };
+}
+
+export async function hardDeleteStatusAction(id) {
+  return deactivateStatusAction(id);
 }
 
 // ─── ORG ROLE ACTIONS ──────────────────────────────────────
